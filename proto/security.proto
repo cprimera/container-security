@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package security;
+
+option go_package = "github.com/cprimera/container-security/internal/proto";
+
+// SecurityRequest carries the command-line arguments that should be forwarded
+// to the macOS `security` CLI.
+message SecurityRequest {
+  repeated string args = 1;
+}
+
+// SecurityResponse carries the output produced by the macOS `security` CLI.
+message SecurityResponse {
+  string stdout    = 1;
+  string stderr    = 2;
+  int32  exit_code = 3;
+}
