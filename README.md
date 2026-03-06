@@ -67,13 +67,36 @@ Each message (request or response) is transmitted as:
 
 ```bash
 go build -o container-server ./cmd/server
+# or
+make server
 ```
 
 ### Build the client
 
 ```bash
 go build -o container-client ./cmd/client
+# or
+make client
 ```
+
+### Cross-compile for arm64
+
+macOS arm64:
+
+```bash
+make build-darwin-arm64
+# produces container-server-darwin-arm64 and container-client-darwin-arm64
+```
+
+Linux arm64:
+
+```bash
+make build-linux-arm64
+# produces container-server-linux-arm64 and container-client-linux-arm64
+```
+
+Individual targets are also available: `server-darwin-arm64`, `client-darwin-arm64`,
+`server-linux-arm64`, `client-linux-arm64`.
 
 ### Regenerate protobuf code
 
