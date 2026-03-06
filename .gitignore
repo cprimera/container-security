@@ -8,6 +8,14 @@
 *.so
 *.dylib
 
+# Built binaries
+container-server
+container-client
+container-server-darwin-arm64
+container-client-darwin-arm64
+container-server-linux-arm64
+container-client-linux-arm64
+
 # Test binary, built with `go test -c`
 *.test
 
