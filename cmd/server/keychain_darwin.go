@@ -3,12 +3,12 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"strings"
 
 	keychain "github.com/keybase/go-keychain"
 
+	"github.com/cprimera/container-security/internal/command"
 	pb "github.com/cprimera/container-security/internal/proto"
 )
 
@@ -23,17 +23,17 @@ func keychainExecutor(args []string) *pb.SecurityResponse {
 	}
 
 	switch args[0] {
-	case "find-generic-password":
+	case command.FindGenericPassword:
 		return keychainFindGenericPassword(args[1:])
-	case "find-internet-password":
+	case command.FindInternetPassword:
 		return keychainFindInternetPassword(args[1:])
-	case "add-generic-password":
+	case command.AddGenericPassword:
 		return keychainAddGenericPassword(args[1:])
-	case "add-internet-password":
+	case command.AddInternetPassword:
 		return keychainAddInternetPassword(args[1:])
-	case "delete-generic-password":
+	case command.DeleteGenericPassword:
 		return keychainDeleteGenericPassword(args[1:])
-	case "delete-internet-password":
+	case command.DeleteInternetPassword:
 		return keychainDeleteInternetPassword(args[1:])
 	default:
 		return &pb.SecurityResponse{
@@ -71,34 +71,28 @@ func keychainErrResponse(op string, err error) *pb.SecurityResponse {
 }
 
 // keychainFindGenericPassword handles the find-generic-password subcommand.
-// Flags supported: -a (account), -s (service), -l (label), -w (password only).
+// Flags: -a (account), -s (service), -l (label), -g (show password), -w (password only).
 func keychainFindGenericPassword(args []string) *pb.SecurityResponse {
-	fs := flag.NewFlagSet("find-generic-password", flag.ContinueOnError)
-	account := fs.String("a", "", "account name")
-	service := fs.String("s", "", "service name")
-	label := fs.String("l", "", "label")
-	passwordOnly := fs.Bool("w", false, "output password to stdout only")
-
-	var buf strings.Builder
-	fs.SetOutput(&buf)
-	if err := fs.Parse(args); err != nil {
-		return &pb.SecurityResponse{Stderr: buf.String(), ExitCode: 2}
+	a, err := command.ParseFindGenericPassword(args)
+	if err != nil {
+		return &pb.SecurityResponse{Stderr: err.Error() + "\n", ExitCode: 2}
 	}
 
 	query := keychain.NewItem()
 	query.SetSecClass(keychain.SecClassGenericPassword)
-	if *account != "" {
-		query.SetAccount(*account)
+	if a.Account != "" {
+		query.SetAccount(a.Account)
 	}
-	if *service != "" {
-		query.SetService(*service)
+	if a.Service != "" {
+		query.SetService(a.Service)
 	}
-	if *label != "" {
-		query.SetLabel(*label)
+	if a.Label != "" {
+		query.SetLabel(a.Label)
 	}
 	query.SetMatchLimit(keychain.MatchLimitOne)
-	query.SetReturnData(true)
 	query.SetReturnAttributes(true)
+	// Fetch password data only when the caller needs it.
+	query.SetReturnData(a.PasswordOnly || a.ShowPassword)
 
 	results, err := keychain.QueryItem(query)
 	if err != nil {
@@ -112,7 +106,7 @@ func keychainFindGenericPassword(args []string) *pb.SecurityResponse {
 	}
 
 	r := results[0]
-	if *passwordOnly {
+	if a.PasswordOnly {
 		return &pb.SecurityResponse{Stdout: string(r.Data) + "\n"}
 	}
 
@@ -128,39 +122,35 @@ func keychainFindGenericPassword(args []string) *pb.SecurityResponse {
 	if r.Label != "" {
 		sb.WriteString(fmt.Sprintf("    \"labl\"<blob>=%q\n", r.Label))
 	}
-	sb.WriteString(fmt.Sprintf("password: %q\n", string(r.Data)))
+	if a.ShowPassword {
+		sb.WriteString(fmt.Sprintf("password: %q\n", string(r.Data)))
+	}
 	return &pb.SecurityResponse{Stdout: sb.String()}
 }
 
 // keychainFindInternetPassword handles the find-internet-password subcommand.
-// Flags supported: -a (account), -s (server), -l (label), -w (password only).
+// Flags: -a (account), -s (server), -l (label), -g (show password), -w (password only).
 func keychainFindInternetPassword(args []string) *pb.SecurityResponse {
-	fs := flag.NewFlagSet("find-internet-password", flag.ContinueOnError)
-	account := fs.String("a", "", "account name")
-	server := fs.String("s", "", "server name")
-	label := fs.String("l", "", "label")
-	passwordOnly := fs.Bool("w", false, "output password to stdout only")
-
-	var buf strings.Builder
-	fs.SetOutput(&buf)
-	if err := fs.Parse(args); err != nil {
-		return &pb.SecurityResponse{Stderr: buf.String(), ExitCode: 2}
+	a, err := command.ParseFindInternetPassword(args)
+	if err != nil {
+		return &pb.SecurityResponse{Stderr: err.Error() + "\n", ExitCode: 2}
 	}
 
 	query := keychain.NewItem()
 	query.SetSecClass(keychain.SecClassInternetPassword)
-	if *account != "" {
-		query.SetAccount(*account)
+	if a.Account != "" {
+		query.SetAccount(a.Account)
 	}
-	if *server != "" {
-		query.SetServer(*server)
+	if a.Server != "" {
+		query.SetServer(a.Server)
 	}
-	if *label != "" {
-		query.SetLabel(*label)
+	if a.Label != "" {
+		query.SetLabel(a.Label)
 	}
 	query.SetMatchLimit(keychain.MatchLimitOne)
-	query.SetReturnData(true)
 	query.SetReturnAttributes(true)
+	// Fetch password data only when the caller needs it.
+	query.SetReturnData(a.PasswordOnly || a.ShowPassword)
 
 	results, err := keychain.QueryItem(query)
 	if err != nil {
@@ -174,7 +164,7 @@ func keychainFindInternetPassword(args []string) *pb.SecurityResponse {
 	}
 
 	r := results[0]
-	if *passwordOnly {
+	if a.PasswordOnly {
 		return &pb.SecurityResponse{Stdout: string(r.Data) + "\n"}
 	}
 
@@ -190,136 +180,117 @@ func keychainFindInternetPassword(args []string) *pb.SecurityResponse {
 	if r.Label != "" {
 		sb.WriteString(fmt.Sprintf("    \"labl\"<blob>=%q\n", r.Label))
 	}
-	sb.WriteString(fmt.Sprintf("password: %q\n", string(r.Data)))
+	if a.ShowPassword {
+		sb.WriteString(fmt.Sprintf("password: %q\n", string(r.Data)))
+	}
 	return &pb.SecurityResponse{Stdout: sb.String()}
 }
 
 // keychainAddGenericPassword handles the add-generic-password subcommand.
-// Flags supported: -a (account), -s (service), -l (label), -w (password), -U (update if exists).
+// Flags: -a (account), -s (service), -l (label), -w (password), -U (update if exists).
 func keychainAddGenericPassword(args []string) *pb.SecurityResponse {
-	fs := flag.NewFlagSet("add-generic-password", flag.ContinueOnError)
-	account := fs.String("a", "", "account name")
-	service := fs.String("s", "", "service name")
-	label := fs.String("l", "", "label")
-	password := fs.String("w", "", "password data")
-	update := fs.Bool("U", false, "update item if it already exists")
-
-	var buf strings.Builder
-	fs.SetOutput(&buf)
-	if err := fs.Parse(args); err != nil {
-		return &pb.SecurityResponse{Stderr: buf.String(), ExitCode: 2}
+	a, err := command.ParseAddGenericPassword(args)
+	if err != nil {
+		return &pb.SecurityResponse{Stderr: err.Error() + "\n", ExitCode: 2}
 	}
 
 	item := keychain.NewItem()
 	item.SetSecClass(keychain.SecClassGenericPassword)
-	if *account != "" {
-		item.SetAccount(*account)
+	if a.Account != "" {
+		item.SetAccount(a.Account)
 	}
-	if *service != "" {
-		item.SetService(*service)
+	if a.Service != "" {
+		item.SetService(a.Service)
 	}
-	if *label != "" {
-		item.SetLabel(*label)
+	if a.Label != "" {
+		item.SetLabel(a.Label)
 	}
-	item.SetData([]byte(*password))
+	item.SetData([]byte(a.Password))
 	item.SetAccessible(keychain.AccessibleWhenUnlocked)
 
-	err := keychain.AddItem(item)
-	if err == keychain.ErrorDuplicateItem && *update {
+	addErr := keychain.AddItem(item)
+	if addErr == keychain.ErrorDuplicateItem && a.Update {
 		query := keychain.NewItem()
 		query.SetSecClass(keychain.SecClassGenericPassword)
-		if *account != "" {
-			query.SetAccount(*account)
+		if a.Account != "" {
+			query.SetAccount(a.Account)
 		}
-		if *service != "" {
-			query.SetService(*service)
+		if a.Service != "" {
+			query.SetService(a.Service)
 		}
 		updateItem := keychain.NewItem()
-		updateItem.SetData([]byte(*password))
-		if *label != "" {
-			updateItem.SetLabel(*label)
+		updateItem.SetData([]byte(a.Password))
+		if a.Label != "" {
+			updateItem.SetLabel(a.Label)
 		}
-		err = keychain.UpdateItem(query, updateItem)
+		addErr = keychain.UpdateItem(query, updateItem)
 	}
-	if err != nil {
-		return keychainErrResponse("SecKeychainAddGenericPassword", err)
+	if addErr != nil {
+		return keychainErrResponse("SecKeychainAddGenericPassword", addErr)
 	}
 	return &pb.SecurityResponse{}
 }
 
 // keychainAddInternetPassword handles the add-internet-password subcommand.
-// Flags supported: -a (account), -s (server), -l (label), -w (password), -U (update if exists).
+// Flags: -a (account), -s (server), -l (label), -w (password), -U (update if exists).
 func keychainAddInternetPassword(args []string) *pb.SecurityResponse {
-	fs := flag.NewFlagSet("add-internet-password", flag.ContinueOnError)
-	account := fs.String("a", "", "account name")
-	server := fs.String("s", "", "server name")
-	label := fs.String("l", "", "label")
-	password := fs.String("w", "", "password data")
-	update := fs.Bool("U", false, "update item if it already exists")
-
-	var buf strings.Builder
-	fs.SetOutput(&buf)
-	if err := fs.Parse(args); err != nil {
-		return &pb.SecurityResponse{Stderr: buf.String(), ExitCode: 2}
+	a, err := command.ParseAddInternetPassword(args)
+	if err != nil {
+		return &pb.SecurityResponse{Stderr: err.Error() + "\n", ExitCode: 2}
 	}
 
 	item := keychain.NewItem()
 	item.SetSecClass(keychain.SecClassInternetPassword)
-	if *account != "" {
-		item.SetAccount(*account)
+	if a.Account != "" {
+		item.SetAccount(a.Account)
 	}
-	if *server != "" {
-		item.SetServer(*server)
+	if a.Server != "" {
+		item.SetServer(a.Server)
 	}
-	if *label != "" {
-		item.SetLabel(*label)
+	if a.Label != "" {
+		item.SetLabel(a.Label)
 	}
-	item.SetData([]byte(*password))
+	item.SetData([]byte(a.Password))
 	item.SetAccessible(keychain.AccessibleWhenUnlocked)
 
-	err := keychain.AddItem(item)
-	if err == keychain.ErrorDuplicateItem && *update {
+	addErr := keychain.AddItem(item)
+	if addErr == keychain.ErrorDuplicateItem && a.Update {
 		query := keychain.NewItem()
 		query.SetSecClass(keychain.SecClassInternetPassword)
-		if *account != "" {
-			query.SetAccount(*account)
+		if a.Account != "" {
+			query.SetAccount(a.Account)
 		}
-		if *server != "" {
-			query.SetServer(*server)
+		if a.Server != "" {
+			query.SetServer(a.Server)
 		}
 		updateItem := keychain.NewItem()
-		updateItem.SetData([]byte(*password))
-		if *label != "" {
-			updateItem.SetLabel(*label)
+		updateItem.SetData([]byte(a.Password))
+		if a.Label != "" {
+			updateItem.SetLabel(a.Label)
 		}
-		err = keychain.UpdateItem(query, updateItem)
+		addErr = keychain.UpdateItem(query, updateItem)
 	}
-	if err != nil {
-		return keychainErrResponse("SecKeychainAddInternetPassword", err)
+	if addErr != nil {
+		return keychainErrResponse("SecKeychainAddInternetPassword", addErr)
 	}
 	return &pb.SecurityResponse{}
 }
 
 // keychainDeleteGenericPassword handles the delete-generic-password subcommand.
-// Flags supported: -a (account), -s (service).
+// Flags: -a (account), -s (service).
 func keychainDeleteGenericPassword(args []string) *pb.SecurityResponse {
-	fs := flag.NewFlagSet("delete-generic-password", flag.ContinueOnError)
-	account := fs.String("a", "", "account name")
-	service := fs.String("s", "", "service name")
-
-	var buf strings.Builder
-	fs.SetOutput(&buf)
-	if err := fs.Parse(args); err != nil {
-		return &pb.SecurityResponse{Stderr: buf.String(), ExitCode: 2}
+	a, err := command.ParseDeleteGenericPassword(args)
+	if err != nil {
+		return &pb.SecurityResponse{Stderr: err.Error() + "\n", ExitCode: 2}
 	}
 
 	item := keychain.NewItem()
 	item.SetSecClass(keychain.SecClassGenericPassword)
-	if *account != "" {
-		item.SetAccount(*account)
+	if a.Account != "" {
+		item.SetAccount(a.Account)
 	}
-	if *service != "" {
-		item.SetService(*service)
+	if a.Service != "" {
+		item.SetService(a.Service)
 	}
 
 	if err := keychain.DeleteItem(item); err != nil {
@@ -329,25 +300,20 @@ func keychainDeleteGenericPassword(args []string) *pb.SecurityResponse {
 }
 
 // keychainDeleteInternetPassword handles the delete-internet-password subcommand.
-// Flags supported: -a (account), -s (server).
+// Flags: -a (account), -s (server).
 func keychainDeleteInternetPassword(args []string) *pb.SecurityResponse {
-	fs := flag.NewFlagSet("delete-internet-password", flag.ContinueOnError)
-	account := fs.String("a", "", "account name")
-	server := fs.String("s", "", "server name")
-
-	var buf strings.Builder
-	fs.SetOutput(&buf)
-	if err := fs.Parse(args); err != nil {
-		return &pb.SecurityResponse{Stderr: buf.String(), ExitCode: 2}
+	a, err := command.ParseDeleteInternetPassword(args)
+	if err != nil {
+		return &pb.SecurityResponse{Stderr: err.Error() + "\n", ExitCode: 2}
 	}
 
 	item := keychain.NewItem()
 	item.SetSecClass(keychain.SecClassInternetPassword)
-	if *account != "" {
-		item.SetAccount(*account)
+	if a.Account != "" {
+		item.SetAccount(a.Account)
 	}
-	if *server != "" {
-		item.SetServer(*server)
+	if a.Server != "" {
+		item.SetServer(a.Server)
 	}
 
 	if err := keychain.DeleteItem(item); err != nil {
@@ -355,3 +321,5 @@ func keychainDeleteInternetPassword(args []string) *pb.SecurityResponse {
 	}
 	return &pb.SecurityResponse{}
 }
+
+

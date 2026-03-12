@@ -108,6 +108,32 @@ func TestRunNoSubcommand(t *testing.T) {
 	}
 }
 
+func TestRunFindGenericPasswordShowPasswordFlag(t *testing.T) {
+	socketPath := "/tmp/cs-client-test-g-flag.sock"
+	want := &pb.SecurityResponse{Stdout: "class: \"genp\"\nattributes:\npassword: \"secret\"\n", ExitCode: 0}
+	cleanup := startFakeServer(t, socketPath, want)
+	defer cleanup()
+
+	// -g should be accepted as a valid flag and forwarded to the server.
+	code := run([]string{"-socket", socketPath, "find-generic-password", "-s", "myservice", "-g"})
+	if code != 0 {
+		t.Errorf("run returned exit code %d, want 0", code)
+	}
+}
+
+func TestRunFindInternetPasswordShowPasswordFlag(t *testing.T) {
+	socketPath := "/tmp/cs-client-test-internet-g-flag.sock"
+	want := &pb.SecurityResponse{Stdout: "class: \"inet\"\nattributes:\npassword: \"secret\"\n", ExitCode: 0}
+	cleanup := startFakeServer(t, socketPath, want)
+	defer cleanup()
+
+	// -g should be accepted as a valid flag and forwarded to the server.
+	code := run([]string{"-socket", socketPath, "find-internet-password", "-s", "example.com", "-g"})
+	if code != 0 {
+		t.Errorf("run returned exit code %d, want 0", code)
+	}
+}
+
 func TestSendRequest(t *testing.T) {
 	socketPath := "/tmp/cs-client-test-send.sock"
 	want := &pb.SecurityResponse{Stdout: "hello\n", ExitCode: 0}

@@ -18,12 +18,14 @@
 //	  -a <account>  Match account name
 //	  -s <service>  Match service name
 //	  -l <label>    Match label
+//	  -g            Display the password in the results
 //	  -w            Output password only (to stdout)
 //
 //	find-internet-password   Find an internet keychain password item.
 //	  -a <account>  Match account name
 //	  -s <server>   Match server name
 //	  -l <label>    Match label
+//	  -g            Display the password in the results
 //	  -w            Output password only (to stdout)
 //
 //	add-generic-password     Add a generic keychain password item.
@@ -56,6 +58,7 @@ import (
 	"net"
 	"os"
 
+	"github.com/cprimera/container-security/internal/command"
 	pb "github.com/cprimera/container-security/internal/proto"
 	"github.com/cprimera/container-security/internal/socket"
 )
@@ -105,7 +108,7 @@ func printUsage(fs *flag.FlagSet) {
 	fmt.Fprintf(os.Stderr, "Global flags:\n")
 	fs.PrintDefaults()
 	fmt.Fprintf(os.Stderr, "\nCommands:\n")
-	for _, sub := range subcommandFlagSets() {
+	for _, sub := range command.Subcommands() {
 		fmt.Fprintf(os.Stderr, "\n  %s\n", sub.Name())
 		sub.VisitAll(func(f *flag.Flag) {
 			fmt.Fprintf(os.Stderr, "    -%s\t%s\n", f.Name, f.Usage)
@@ -116,68 +119,11 @@ func printUsage(fs *flag.FlagSet) {
 // parseSubcommand validates the subcommand name and its flags.
 // It returns an error if the subcommand is unknown or its flags are invalid.
 func parseSubcommand(subcmd string, args []string) error {
-	fs := subcommandFlags(subcmd)
+	fs := command.FlagSet(subcmd)
 	if fs == nil {
 		return fmt.Errorf("security: unknown command '%s'", subcmd)
 	}
 	return fs.Parse(args)
-}
-
-// subcommandFlags returns a configured FlagSet for the given subcommand, or
-// nil if the subcommand is not recognised.
-func subcommandFlags(subcmd string) *flag.FlagSet {
-	for _, fs := range subcommandFlagSets() {
-		if fs.Name() == subcmd {
-			return fs
-		}
-	}
-	return nil
-}
-
-// subcommandFlagSets returns flag sets for every supported subcommand.
-func subcommandFlagSets() []*flag.FlagSet {
-	findGeneric := flag.NewFlagSet("find-generic-password", flag.ContinueOnError)
-	findGeneric.String("a", "", "Match `account` name")
-	findGeneric.String("s", "", "Match `service` name")
-	findGeneric.String("l", "", "Match `label`")
-	findGeneric.Bool("w", false, "Output password only (to stdout)")
-
-	findInternet := flag.NewFlagSet("find-internet-password", flag.ContinueOnError)
-	findInternet.String("a", "", "Match `account` name")
-	findInternet.String("s", "", "Match `server` name")
-	findInternet.String("l", "", "Match `label`")
-	findInternet.Bool("w", false, "Output password only (to stdout)")
-
-	addGeneric := flag.NewFlagSet("add-generic-password", flag.ContinueOnError)
-	addGeneric.String("a", "", "`Account` name")
-	addGeneric.String("s", "", "`Service` name")
-	addGeneric.String("l", "", "`Label`")
-	addGeneric.String("w", "", "`Password` data")
-	addGeneric.Bool("U", false, "Update item if it already exists")
-
-	addInternet := flag.NewFlagSet("add-internet-password", flag.ContinueOnError)
-	addInternet.String("a", "", "`Account` name")
-	addInternet.String("s", "", "`Server` name")
-	addInternet.String("l", "", "`Label`")
-	addInternet.String("w", "", "`Password` data")
-	addInternet.Bool("U", false, "Update item if it already exists")
-
-	deleteGeneric := flag.NewFlagSet("delete-generic-password", flag.ContinueOnError)
-	deleteGeneric.String("a", "", "Match `account` name")
-	deleteGeneric.String("s", "", "Match `service` name")
-
-	deleteInternet := flag.NewFlagSet("delete-internet-password", flag.ContinueOnError)
-	deleteInternet.String("a", "", "Match `account` name")
-	deleteInternet.String("s", "", "Match `server` name")
-
-	return []*flag.FlagSet{
-		findGeneric,
-		findInternet,
-		addGeneric,
-		addInternet,
-		deleteGeneric,
-		deleteInternet,
-	}
 }
 
 // sendRequest connects to the server, sends a SecurityRequest with the
