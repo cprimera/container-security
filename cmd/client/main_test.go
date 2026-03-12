@@ -42,11 +42,11 @@ func startFakeServer(t *testing.T, socketPath string, resp *pb.SecurityResponse)
 
 func TestRunSuccess(t *testing.T) {
 	socketPath := "/tmp/cs-client-test-success.sock"
-	want := &pb.SecurityResponse{Stdout: "login.keychain\n", ExitCode: 0}
+	want := &pb.SecurityResponse{Stdout: "mysecret\n", ExitCode: 0}
 	cleanup := startFakeServer(t, socketPath, want)
 	defer cleanup()
 
-	code := run([]string{"-socket", socketPath, "list-keychains"})
+	code := run([]string{"-socket", socketPath, "find-generic-password", "-s", "myservice", "-w"})
 	if code != 0 {
 		t.Errorf("run returned exit code %d, want 0", code)
 	}
@@ -70,17 +70,41 @@ func TestRunNonZeroExitCode(t *testing.T) {
 
 func TestRunNoServer(t *testing.T) {
 	// No server is listening; run should return a non-zero exit code.
-	code := run([]string{"-socket", "/tmp/cs-nonexistent.sock", "list-keychains"})
+	code := run([]string{"-socket", "/tmp/cs-nonexistent.sock", "find-generic-password", "-s", "test"})
 	if code == 0 {
 		t.Error("expected non-zero exit code when server is unreachable, got 0")
 	}
 }
 
 func TestRunBadFlag(t *testing.T) {
-	// An unknown flag should cause run to return exit code 2.
+	// An unknown global flag should cause run to return exit code 2.
 	code := run([]string{"--unknown-flag"})
 	if code == 0 {
 		t.Error("expected non-zero exit code for unknown flag, got 0")
+	}
+}
+
+func TestRunUnknownSubcommand(t *testing.T) {
+	// An unknown subcommand should be rejected by the client without connecting.
+	code := run([]string{"-socket", "/tmp/cs-nonexistent.sock", "list-keychains"})
+	if code == 0 {
+		t.Error("expected non-zero exit code for unknown subcommand, got 0")
+	}
+}
+
+func TestRunBadSubcommandFlag(t *testing.T) {
+	// An unknown flag for a known subcommand should be rejected by the client.
+	code := run([]string{"-socket", "/tmp/cs-nonexistent.sock", "find-generic-password", "--unknown"})
+	if code == 0 {
+		t.Error("expected non-zero exit code for unknown subcommand flag, got 0")
+	}
+}
+
+func TestRunNoSubcommand(t *testing.T) {
+	// No subcommand supplied should print usage and return exit code 2.
+	code := run([]string{"-socket", "/tmp/cs-nonexistent.sock"})
+	if code == 0 {
+		t.Error("expected non-zero exit code when no subcommand given, got 0")
 	}
 }
 
@@ -90,7 +114,7 @@ func TestSendRequest(t *testing.T) {
 	cleanup := startFakeServer(t, socketPath, want)
 	defer cleanup()
 
-	code, err := sendRequest(socketPath, []string{"list-keychains"})
+	code, err := sendRequest(socketPath, []string{"find-generic-password", "-s", "svc"})
 	if err != nil {
 		t.Fatalf("sendRequest: %v", err)
 	}
