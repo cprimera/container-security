@@ -243,6 +243,9 @@ func parseFS(fs *flag.FlagSet, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return errors.New(strings.TrimSpace(buf.String()))
 	}
+	if fs.NArg() != 0 {
+		return errors.New("unexpected positional arguments: " + strings.Join(fs.Args(), " "))
+	}
 	return nil
 }
 
