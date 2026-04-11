@@ -5,7 +5,7 @@
 //
 // Usage:
 //
-//	client [-socket <path>] <command> [flags]
+//	container-client [-socket <path>] <command> [flags]
 //
 // Global flags:
 //
@@ -58,6 +58,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 
 	"github.com/cprimera/container-security/internal/command"
 	pb "github.com/cprimera/container-security/internal/proto"
@@ -71,9 +72,10 @@ func main() {
 // run sends the provided args to the server and returns the exit code.
 // Separating this from main allows tests to exercise run without os.Exit.
 func run(args []string) int {
-	fs := flag.NewFlagSet("client", flag.ContinueOnError)
+	progName := filepath.Base(os.Args[0])
+	fs := flag.NewFlagSet(progName, flag.ContinueOnError)
 	socketPath := fs.String("socket", socket.DefaultSocketPath, "Unix domain socket path")
-	fs.Usage = func() { printUsage(fs) }
+	fs.Usage = func() { printUsage(fs, progName) }
 
 	if err := fs.Parse(args); err != nil {
 		// flag already printed the error.
@@ -82,7 +84,7 @@ func run(args []string) int {
 
 	subcmdArgs := fs.Args()
 	if len(subcmdArgs) == 0 {
-		printUsage(fs)
+		printUsage(fs, progName)
 		return 2
 	}
 
@@ -104,8 +106,8 @@ func run(args []string) int {
 }
 
 // printUsage prints full usage information to stderr.
-func printUsage(fs *flag.FlagSet) {
-	fmt.Fprintf(os.Stderr, "Usage: client [-socket <path>] <command> [flags]\n\n")
+func printUsage(fs *flag.FlagSet, progName string) {
+	fmt.Fprintf(os.Stderr, "Usage: %s [-socket <path>] <command> [flags]\n\n", progName)
 	fmt.Fprintf(os.Stderr, "Global flags:\n")
 	fs.PrintDefaults()
 	fmt.Fprintf(os.Stderr, "\nCommands:\n")
