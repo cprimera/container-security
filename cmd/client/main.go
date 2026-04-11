@@ -1,33 +1,65 @@
 // Package main implements the container-security client.
 //
-// The client accepts the same arguments as the macOS `security` CLI, sends
-// them over a Unix domain socket to the server, and prints the server's
-// response to stdout/stderr, exiting with the same exit code returned by the
-// server.
+// The client sends Keychain requests over a Unix domain socket to the server,
+// printing the response to stdout/stderr and exiting with the same exit code.
 //
 // Usage:
 //
-//	client [-socket <path>] [security arguments...]
+//	client [-socket <path>] <command> [flags]
 //
-// Flags:
+// Global flags:
 //
 //	-socket  Path of the Unix domain socket to connect to.
 //	         Defaults to /tmp/container-security.sock.
 //
-// Examples:
+// Commands:
 //
-//	client list-keychains
-//	client find-generic-password -s my-service -w
-//	client -socket /var/run/cs.sock find-internet-password -s example.com
+//	find-generic-password    Find a generic keychain password item.
+//	  -a <account>  Match account name
+//	  -s <service>  Match service name
+//	  -l <label>    Match label
+//	  -g            Display the password in the results
+//	  -w            Output password only (to stdout)
+//
+//	find-internet-password   Find an internet keychain password item.
+//	  -a <account>  Match account name
+//	  -s <server>   Match server name
+//	  -l <label>    Match label
+//	  -g            Display the password in the results
+//	  -w            Output password only (to stdout)
+//
+//	add-generic-password     Add a generic keychain password item.
+//	  -a <account>  Account name
+//	  -s <service>  Service name
+//	  -l <label>    Label
+//	  -w <password> Password data
+//	  -U            Update item if it already exists
+//
+//	add-internet-password    Add an internet keychain password item.
+//	  -a <account>  Account name
+//	  -s <server>   Server name
+//	  -l <label>    Label
+//	  -w <password> Password data
+//	  -U            Update item if it already exists
+//
+//	delete-generic-password  Delete a generic keychain password item.
+//	  -a <account>  Match account name
+//	  -s <service>  Match service name
+//
+//	delete-internet-password Delete an internet keychain password item.
+//	  -a <account>  Match account name
+//	  -s <server>   Match server name
 package main
 
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
 
+	"github.com/cprimera/container-security/internal/command"
 	pb "github.com/cprimera/container-security/internal/proto"
 	"github.com/cprimera/container-security/internal/socket"
 )
@@ -41,18 +73,61 @@ func main() {
 func run(args []string) int {
 	fs := flag.NewFlagSet("client", flag.ContinueOnError)
 	socketPath := fs.String("socket", socket.DefaultSocketPath, "Unix domain socket path")
+	fs.Usage = func() { printUsage(fs) }
 
 	if err := fs.Parse(args); err != nil {
 		// flag already printed the error.
 		return 2
 	}
 
-	code, err := sendRequest(*socketPath, fs.Args())
+	subcmdArgs := fs.Args()
+	if len(subcmdArgs) == 0 {
+		printUsage(fs)
+		return 2
+	}
+
+	subcmd := subcmdArgs[0]
+	subFlags := subcmdArgs[1:]
+
+	// Validate the subcommand and its flags before making a network call.
+	if err := parseSubcommand(subcmd, subFlags); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 2
+	}
+
+	code, err := sendRequest(*socketPath, subcmdArgs)
 	if err != nil {
 		log.Printf("client error: %v", err)
 		return 1
 	}
 	return code
+}
+
+// printUsage prints full usage information to stderr.
+func printUsage(fs *flag.FlagSet) {
+	fmt.Fprintf(os.Stderr, "Usage: client [-socket <path>] <command> [flags]\n\n")
+	fmt.Fprintf(os.Stderr, "Global flags:\n")
+	fs.PrintDefaults()
+	fmt.Fprintf(os.Stderr, "\nCommands:\n")
+	for _, sub := range command.Subcommands() {
+		fmt.Fprintf(os.Stderr, "\n  %s\n", sub.Name())
+		sub.VisitAll(func(f *flag.Flag) {
+			fmt.Fprintf(os.Stderr, "    -%s\t%s\n", f.Name, f.Usage)
+		})
+	}
+}
+
+// parseSubcommand validates the subcommand name and its flags.
+// It returns an error if the subcommand is unknown or its flags are invalid.
+// The FlagSet output is redirected to io.Discard so the flag package does not
+// write to stderr; run() emits a single error message from the returned error.
+func parseSubcommand(subcmd string, args []string) error {
+	fs := command.FlagSet(subcmd)
+	if fs == nil {
+		return fmt.Errorf("security: unknown command '%s'", subcmd)
+	}
+	fs.SetOutput(io.Discard)
+	return fs.Parse(args)
 }
 
 // sendRequest connects to the server, sends a SecurityRequest with the

@@ -2,9 +2,8 @@
 //
 // The server listens on a Unix domain socket and handles incoming connections
 // from the client. For each connection it reads a SecurityRequest protobuf
-// message, executes the macOS `security` CLI with the provided arguments, and
-// writes a SecurityResponse protobuf message with the output back to the
-// client.
+// message, calls the macOS Keychain APIs directly via go-keychain, and writes
+// a SecurityResponse protobuf message with the output back to the client.
 //
 // Usage:
 //
@@ -23,7 +22,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"os/exec"
 	"os/signal"
 	"syscall"
 
@@ -80,17 +78,17 @@ func run(socketPath string) error {
 	}
 }
 
-// executor is a function that runs the security CLI and returns a response.
+// executor is a function that performs a Keychain operation and returns a response.
 type executor func(args []string) *pb.SecurityResponse
 
-// handleConn processes a single client connection using execSecurity.
+// handleConn processes a single client connection using keychainExecutor.
 func handleConn(conn net.Conn) {
-	handleConnWithExecutor(conn, execSecurity)
+	handleConnWithExecutor(conn, keychainExecutor)
 }
 
 // handleConnWithExecutor processes a single client connection using the
 // provided executor function.  It is separated from handleConn to allow tests
-// to inject a stub executor without requiring the macOS `security` binary.
+// to inject a stub executor without requiring a macOS Keychain.
 func handleConnWithExecutor(conn net.Conn, exec executor) {
 	defer conn.Close()
 
@@ -105,26 +103,4 @@ func handleConnWithExecutor(conn net.Conn, exec executor) {
 	if err := socket.WriteMessage(conn, resp); err != nil {
 		log.Printf("write response: %v", err)
 	}
-}
-
-// execSecurity runs `security <args>` and returns the captured output.
-func execSecurity(args []string) *pb.SecurityResponse {
-	cmd := exec.Command("security", args...) //nolint:gosec
-	stdout, err := cmd.Output()
-
-	resp := &pb.SecurityResponse{
-		Stdout: string(stdout),
-	}
-
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			resp.Stderr = string(exitErr.Stderr)
-			resp.ExitCode = int32(exitErr.ExitCode())
-		} else {
-			resp.Stderr = err.Error()
-			resp.ExitCode = 1
-		}
-	}
-
-	return resp
 }

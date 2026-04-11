@@ -19,9 +19,11 @@ client:
 ## ---------- macOS arm64 targets ----------
 
 ## Build both binaries for macOS arm64
+## NOTE: The server uses go-keychain (CGO + macOS Security framework) and must
+## be compiled on a macOS host. Cross-compilation from Linux is not supported.
 build-darwin-arm64: server-darwin-arm64 client-darwin-arm64
 
-## Build the server binary for macOS arm64
+## Build the server binary for macOS arm64 (must be run on a macOS host)
 server-darwin-arm64:
 	GOOS=darwin GOARCH=arm64 go build -o container-server-darwin-arm64 ./cmd/server
 

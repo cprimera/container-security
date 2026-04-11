@@ -12,9 +12,9 @@ import (
 )
 
 // TestHandleConn verifies that handleConn reads a request and writes a
-// response over an in-memory pipe without requiring the `security` binary.
-// It uses a stub execSecurity via the handleConnWithExecutor helper so that
-// the test is portable (macOS `security` is not available in CI).
+// response over an in-memory pipe. It uses a stub executor via the
+// handleConnWithExecutor helper so the test runs on any platform without
+// a macOS Keychain.
 func TestHandleConnRoundTrip(t *testing.T) {
 	c1, c2 := net.Pipe()
 	defer c1.Close()
@@ -68,19 +68,30 @@ func TestHandleConnBadRequest(t *testing.T) {
 	}
 }
 
-func TestExecSecurityNotAvailable(t *testing.T) {
-	// On non-macOS systems `security` is not present; we expect a non-zero
-	// exit code rather than a panic.
-	resp := execSecurity([]string{"list-keychains"})
+func TestKeychainExecutorNoArgs(t *testing.T) {
+	// keychainExecutor with no args should return a well-formed usage response.
+	resp := keychainExecutor([]string{})
 	if resp == nil {
 		t.Fatal("expected non-nil response")
 	}
-	// On Linux the binary won't exist, so ExitCode should be non-zero.
-	// On macOS it may succeed; either outcome is acceptable for this test.
-	// We only assert that the function returns a well-formed response.
-	_ = resp.ExitCode
-	_ = resp.Stdout
-	_ = resp.Stderr
+	if resp.ExitCode == 0 {
+		t.Error("expected non-zero exit code when no args are provided")
+	}
+	if resp.Stderr == "" {
+		t.Error("expected non-empty stderr for usage error")
+	}
+}
+
+func TestKeychainExecutorUnknownCommand(t *testing.T) {
+	// keychainExecutor with an unsupported command should return a well-formed
+	// error response rather than panicking.
+	resp := keychainExecutor([]string{"list-keychains"})
+	if resp == nil {
+		t.Fatal("expected non-nil response")
+	}
+	if resp.ExitCode == 0 {
+		t.Error("expected non-zero exit code for unsupported command")
+	}
 }
 
 // TestRunGracefulShutdown starts the server, sends a SIGTERM, and verifies it
