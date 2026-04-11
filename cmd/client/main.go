@@ -54,6 +54,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -118,11 +119,14 @@ func printUsage(fs *flag.FlagSet) {
 
 // parseSubcommand validates the subcommand name and its flags.
 // It returns an error if the subcommand is unknown or its flags are invalid.
+// The FlagSet output is redirected to io.Discard so the flag package does not
+// write to stderr; run() emits a single error message from the returned error.
 func parseSubcommand(subcmd string, args []string) error {
 	fs := command.FlagSet(subcmd)
 	if fs == nil {
 		return fmt.Errorf("security: unknown command '%s'", subcmd)
 	}
+	fs.SetOutput(io.Discard)
 	return fs.Parse(args)
 }
 
