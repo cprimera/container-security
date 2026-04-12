@@ -1,8 +1,10 @@
 package main
 
 import (
+	"io"
 	"net"
 	"os"
+	"path/filepath"
 	"syscall"
 	"testing"
 	"time"
@@ -94,15 +96,55 @@ func TestKeychainExecutorUnknownCommand(t *testing.T) {
 	}
 }
 
-// TestRunGracefulShutdown starts the server, sends a SIGTERM, and verifies it
+func TestRunVersion(t *testing.T) {
+	oldVersion := version
+	oldCommit := commit
+	t.Cleanup(func() {
+		version = oldVersion
+		commit = oldCommit
+	})
+	version = "v1.2.3"
+	commit = "abc1234"
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	t.Cleanup(func() {
+		w.Close()
+		r.Close()
+	})
+	oldStdout := os.Stdout
+	os.Stdout = w
+	t.Cleanup(func() {
+		os.Stdout = oldStdout
+	})
+
+	code := run([]string{"-version"})
+	w.Close()
+	if code != 0 {
+		t.Errorf("run returned exit code %d, want 0", code)
+	}
+
+	got, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("io.ReadAll: %v", err)
+	}
+	want := filepath.Base(os.Args[0]) + " version v1.2.3 (commit abc1234)\n"
+	if string(got) != want {
+		t.Fatalf("version output = %q, want %q", string(got), want)
+	}
+}
+
+// TestServeGracefulShutdown starts the server, sends a SIGTERM, and verifies it
 // stops listening without error.
-func TestRunGracefulShutdown(t *testing.T) {
+func TestServeGracefulShutdown(t *testing.T) {
 	socketPath := "/tmp/cs-server-test-shutdown.sock"
 	os.Remove(socketPath)
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- run(socketPath)
+		errCh <- serve(socketPath)
 	}()
 
 	// Wait for the socket to appear.
@@ -120,9 +162,11 @@ func TestRunGracefulShutdown(t *testing.T) {
 	select {
 	case err := <-errCh:
 		if err != nil {
-			t.Errorf("run returned error: %v", err)
+			t.Errorf("serve returned error: %v", err)
 		}
 	case <-time.After(3 * time.Second):
 		t.Error("server did not shut down within 3 seconds")
 	}
 }
+
+

@@ -64,44 +64,55 @@ Each message (request or response) is transmitted as:
 ### Requirements
 
 * Go 1.24 or later
+* [GoReleaser](https://goreleaser.com/) v2 or later for project builds
 * macOS (for the real server implementation and macOS-specific builds)
 * Protobuf compiler (`protoc`) and `protoc-gen-go` plugin — only required when
   regenerating `internal/proto/security.pb.go`
 
+### Build the project
+
+```bash
+make all
+# or
+goreleaser build --snapshot --clean
+```
+
+This builds the GoReleaser matrix configured in `.goreleaser.yaml` into `dist/`.
+On this branch that means:
+
+* `container-client` for darwin/linux on amd64 and arm64
+* `container-server` for darwin on amd64 and arm64
+
+Because the server build is CGO-backed and darwin-only, run this on a macOS
+host.
+
 ### Build the server
 
 ```bash
-go build -o container-server ./cmd/server
-# or
 make server
 ```
+
+This uses GoReleaser to build the current-platform `container-server` binary
+into `dist/`. Since the server target is darwin-only, run this on a macOS host.
 
 ### Build the client
 
 ```bash
-go build -o container-client ./cmd/client
-# or
 make client
 ```
 
-### Cross-compile for arm64
+This uses GoReleaser to build the current-platform `container-client` binary
+into `dist/`.
 
-macOS arm64:
-
-```bash
-make build-darwin-arm64
-# produces container-server-darwin-arm64 and container-client-darwin-arm64
-```
-
-Linux arm64:
+### Build release archives locally
 
 ```bash
-make build-linux-arm64
-# produces container-server-linux-arm64 and container-client-linux-arm64
+goreleaser release --snapshot --clean
 ```
 
-Individual targets are also available: `server-darwin-arm64`, `client-darwin-arm64`,
-`server-linux-arm64`, `client-linux-arm64`.
+This produces the full archive/checksum set under `dist/` without publishing a
+GitHub release. Because the darwin server build is CGO-backed, run this on a
+macOS host for the full release matrix.
 
 ### Regenerate protobuf code
 
@@ -121,9 +132,10 @@ protoc --go_out=. \
 container-server [-socket <path>]
 ```
 
-| Flag      | Default                          | Description                    |
-|-----------|----------------------------------|--------------------------------|
-| `-socket` | `/tmp/container-security.sock`   | Unix domain socket to listen on |
+| Flag        | Default                        | Description                         |
+|-------------|--------------------------------|-------------------------------------|
+| `-socket`   | `/tmp/container-security.sock` | Unix domain socket to listen on     |
+| `-version`  |                                | Print version and commit information |
 
 The server removes any stale socket file on startup and cleans it up on exit.
 It shuts down gracefully on `SIGINT` or `SIGTERM`.
@@ -134,9 +146,10 @@ It shuts down gracefully on `SIGINT` or `SIGTERM`.
 container-client [-socket <path>] <command> [flags]
 ```
 
-| Flag      | Default                          | Description                     |
-|-----------|----------------------------------|---------------------------------|
-| `-socket` | `/tmp/container-security.sock`   | Unix domain socket to connect to |
+| Flag        | Default                        | Description                         |
+|-------------|--------------------------------|-------------------------------------|
+| `-socket`   | `/tmp/container-security.sock` | Unix domain socket to connect to    |
+| `-version`  |                                | Print version and commit information |
 
 The client validates the command locally, sends it to the server, prints the
 server's stdout/stderr verbatim, and exits with the same exit code returned by
@@ -154,6 +167,9 @@ Supported commands:
 #### Examples
 
 ```bash
+# Show build version information
+container-client -version
+
 # Look up a password
 container-client find-generic-password -s my-service -w
 
@@ -186,6 +202,8 @@ Run a single test:
 ```bash
 go test ./cmd/client -run TestRunSuccess
 go test ./cmd/server -run TestHandleConnRoundTrip
+go test ./cmd/client -run TestRunVersion
+go test ./cmd/server -run TestRunVersion
 ```
 
 ## Security considerations

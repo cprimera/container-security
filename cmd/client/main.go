@@ -65,6 +65,11 @@ import (
 	"github.com/cprimera/container-security/internal/socket"
 )
 
+var (
+	version = "dev"
+	commit  = "unknown"
+)
+
 func main() {
 	os.Exit(run(os.Args[1:]))
 }
@@ -75,11 +80,17 @@ func run(args []string) int {
 	progName := filepath.Base(os.Args[0])
 	fs := flag.NewFlagSet(progName, flag.ContinueOnError)
 	socketPath := fs.String("socket", socket.DefaultSocketPath, "Unix domain socket path")
+	showVersion := fs.Bool("version", false, "Print version information and exit")
 	fs.Usage = func() { printUsage(fs, progName) }
 
 	if err := fs.Parse(args); err != nil {
 		// flag already printed the error.
 		return 2
+	}
+
+	if *showVersion {
+		fmt.Fprintf(os.Stdout, "%s version %s (commit %s)\n", progName, version, commit)
+		return 0
 	}
 
 	subcmdArgs := fs.Args()

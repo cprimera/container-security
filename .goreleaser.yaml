@@ -1,0 +1,40 @@
+version: 2
+
+project_name: container-security
+
+builds:
+  - id: container-client
+    main: ./cmd/client
+    binary: container-client
+    ldflags:
+      - -s -w -X main.version={{ .Version }} -X main.commit={{ .ShortCommit }}
+    env:
+      - CGO_ENABLED=0
+    targets:
+      - darwin_amd64
+      - darwin_arm64
+      - linux_amd64
+      - linux_arm64
+
+  - id: container-server
+    main: ./cmd/server
+    binary: container-server
+    ldflags:
+      - -s -w -X main.version={{ .Version }} -X main.commit={{ .ShortCommit }}
+    env:
+      - CGO_ENABLED=1
+    targets:
+      - darwin_amd64
+      - darwin_arm64
+
+archives:
+  - name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+
+changelog:
+  disable: true

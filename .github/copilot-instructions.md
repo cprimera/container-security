@@ -2,14 +2,16 @@
 
 ## Build and test commands
 
-- `make all` builds both binaries for the current platform.
-- `make server` builds `./cmd/server` as `container-server`.
-- `make client` builds `./cmd/client` as `container-client`.
+- `make all` runs `goreleaser build --snapshot --clean` and produces the configured artifact matrix in `dist/`.
+- `make server` builds the current-host `container-server` artifact with GoReleaser; it is effectively a macOS-only target because the server build matrix is darwin-only.
+- `make client` builds the current-platform `container-client` artifact with GoReleaser.
 - `make test` runs the full Go test suite (`go test ./...`).
 - Run a single package with `go test ./cmd/client`, `go test ./cmd/server`, `go test ./internal/socket`, or `go test ./internal/command`.
-- Run a single test with `go test ./cmd/client -run TestRunSuccess`, `go test ./cmd/server -run TestHandleConnRoundTrip`, or the same `-run` pattern in any package.
+- Run a single test with `go test ./cmd/client -run TestRunSuccess`, `go test ./cmd/client -run TestRunVersion`, `go test ./cmd/server -run TestHandleConnRoundTrip`, or the same `-run` pattern in any package.
 - `make proto` regenerates `internal/proto/security.pb.go` from `proto/security.proto`.
-- CI runs on `macos-latest` and executes `make test` followed by `make all`.
+- `goreleaser release --snapshot --clean` builds the full archive/checksum set into `dist/` without publishing a release; run it on macOS for the full matrix because darwin server builds are CGO-backed.
+- `.github/workflows/go.yml` is the normal CI job on `main`: it runs `go test ./...` and `goreleaser build --snapshot --clean` on `macos-latest`.
+- `.github/workflows/release.yml` is the tag-driven release job: pushing a `v*` tag runs `goreleaser release --clean` on `macos-latest` and publishes the GitHub release artifacts.
 
 ## High-level architecture
 
@@ -28,6 +30,8 @@
 - Preserve `security` CLI-style behavior when changing responses. The server returns CLI-like stderr text and exit codes for usage errors and common keychain failures, and the client prints stdout/stderr verbatim before exiting with the server-provided code.
 - Keep the transport contract stable. Both binaries depend on the same protobuf schema plus the length-prefixed socket framing in `internal/socket`.
 - Do not edit `internal/proto/security.pb.go` by hand; change `proto/security.proto` and regenerate it with `make proto`.
+- Keep `.goreleaser.yaml` aligned with the real platform constraints: the client ships for Linux and macOS, while the server build matrix is darwin-only and requires a macOS host for release validation.
 - Tests avoid real macOS keychain access whenever possible. Client tests spin up fake Unix socket servers, and server tests inject stub executors through `handleConnWithExecutor` instead of calling the real keychain implementation.
 - The supported command surface is intentionally narrow: the client rejects unknown `security` subcommands before making a network call, rather than acting as a generic pass-through for the full macOS `security` CLI.
-- macOS-specific build constraints matter for server work. `make build-darwin-arm64` and `make server-darwin-arm64` require a macOS host because the server depends on go-keychain and the macOS Security framework.
+- Version output is linker-injected through `main.version` and `main.commit` in each binary. Keep `-version` behavior and GoReleaser ldflags aligned when changing build metadata.
+- macOS-specific build constraints matter for server work. The server build matrix in `.goreleaser.yaml` is darwin-only because it depends on go-keychain and the macOS Security framework.

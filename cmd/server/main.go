@@ -23,23 +23,52 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 
 	pb "github.com/cprimera/container-security/internal/proto"
 	"github.com/cprimera/container-security/internal/socket"
 )
 
-func main() {
-	socketPath := flag.String("socket", socket.DefaultSocketPath, "Unix domain socket path")
-	flag.Parse()
+var (
+	version = "dev"
+	commit  = "unknown"
+)
 
-	if err := run(*socketPath); err != nil {
-		log.Fatalf("server: %v", err)
-	}
+func main() {
+	os.Exit(run(os.Args[1:]))
 }
 
-// run starts the server and blocks until the process is interrupted.
-func run(socketPath string) error {
+func run(args []string) int {
+	progName := filepath.Base(os.Args[0])
+	fs := flag.NewFlagSet(progName, flag.ContinueOnError)
+	socketPath := fs.String("socket", socket.DefaultSocketPath, "Unix domain socket path")
+	showVersion := fs.Bool("version", false, "Print version information and exit")
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, "Usage: %s [flags]\n\n", progName)
+		fmt.Fprintf(os.Stderr, "Flags:\n")
+		fs.PrintDefaults()
+	}
+
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+
+	if *showVersion {
+		fmt.Fprintf(os.Stdout, "%s version %s (commit %s)\n", progName, version, commit)
+		return 0
+	}
+
+	if err := serve(*socketPath); err != nil {
+		log.Printf("server: %v", err)
+		return 1
+	}
+
+	return 0
+}
+
+// serve starts the server and blocks until the process is interrupted.
+func serve(socketPath string) error {
 	// Remove any leftover socket file from a previous run.
 	if err := os.Remove(socketPath); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("remove stale socket: %w", err)
