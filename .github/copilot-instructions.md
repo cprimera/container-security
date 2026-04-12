@@ -11,7 +11,7 @@
 - `make proto` regenerates `internal/proto/security.pb.go` from `proto/security.proto`.
 - `goreleaser release --snapshot --clean` builds the full archive/checksum set into `dist/` without publishing a release; run it on macOS for the full matrix because darwin server builds are CGO-backed.
 - `.github/workflows/go.yml` is the normal CI job on `main`: it runs `go test ./...` and `goreleaser build --snapshot --clean` on `macos-latest`.
-- `.github/workflows/release.yml` is the tag-driven release job: pushing a `v*` tag runs `goreleaser release --clean` on `macos-latest` and publishes the GitHub release artifacts.
+- `.github/workflows/release.yml` is the release-publishing workflow: it runs on Git tag creation (`create` events for `v*` tags) plus manual dispatch, so tags created through the GitHub Releases UI are included.
 
 ## High-level architecture
 
