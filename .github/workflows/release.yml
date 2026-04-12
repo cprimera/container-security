@@ -5,10 +5,12 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   goreleaser:
+    permissions:
+      contents: write
     if: github.event_name == 'workflow_dispatch' || (github.event_name == 'create' && github.event.ref_type == 'tag' && startsWith(github.event.ref, 'v'))
     runs-on: macos-latest
     steps:
