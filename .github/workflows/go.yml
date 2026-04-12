@@ -27,3 +27,21 @@ jobs:
           distribution: goreleaser
           version: "~> v2"
           args: build --snapshot --clean
+
+  tag:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: macos-latest
+    needs: build
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "lts/*"
+      - name: Semantic Release
+        run: npx semantic-release@25
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
