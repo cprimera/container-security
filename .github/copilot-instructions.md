@@ -22,6 +22,32 @@
 - `cmd/server` listens on the Unix socket, reads one request per connection, delegates execution through `keychainExecutor`, and writes back a `SecurityResponse`.
 - The real server implementation is build-tagged in `cmd/server/keychain_darwin.go` and uses `github.com/keybase/go-keychain` directly. `cmd/server/keychain_other.go` is only a non-macOS stub, so server behavior and CI expectations are centered on macOS.
 
+## Commit messages
+
+All commit messages must follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) format. This project uses `semantic-release` with `@semantic-release/commit-analyzer` to automate versioning and releases from commit history, so well-formed messages are required.
+
+Format: `<type>(<optional scope>): <description>`
+
+Common types:
+- `feat`: a new feature (triggers a minor release)
+- `fix`: a bug fix (triggers a patch release)
+- `docs`: documentation-only changes
+- `refactor`: code change that neither fixes a bug nor adds a feature
+- `test`: adding or updating tests
+- `chore`: maintenance tasks (e.g. dependency updates, build configuration)
+- `perf`: performance improvements
+- `ci`: changes to CI/CD configuration
+
+Breaking changes must include `BREAKING CHANGE:` in the commit footer (triggers a major release), or append `!` after the type, e.g. `feat!: drop support for old socket protocol`.
+
+Examples:
+```
+feat(client): add support for find-internet-password subcommand
+fix(server): return correct exit code on keychain item not found
+docs: update README with new socket path default
+chore: update go-keychain dependency to v0.0.0-20230523032820
+```
+
 ## Key conventions
 
 - Treat `internal/command` as the single source of truth for supported operations. Adding or changing a subcommand means updating the flag-set constructors and `Parse*` helpers there so client validation, usage text, and server-side parsing stay aligned.
