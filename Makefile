@@ -2,7 +2,6 @@
         test proto clean
 
 GORELEASER ?= goreleaser
-CURRENT_GOOS := $(shell go env GOOS)
 
 all: build
 

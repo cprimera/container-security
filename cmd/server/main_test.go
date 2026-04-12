@@ -4,7 +4,7 @@ import (
 	"io"
 	"net"
 	"os"
-	"strings"
+	"path/filepath"
 	"syscall"
 	"testing"
 	"time"
@@ -106,11 +106,15 @@ func TestRunVersion(t *testing.T) {
 	version = "v1.2.3"
 	commit = "abc1234"
 
-	oldStdout := os.Stdout
 	r, w, err := os.Pipe()
 	if err != nil {
 		t.Fatalf("os.Pipe: %v", err)
 	}
+	t.Cleanup(func() {
+		w.Close()
+		r.Close()
+	})
+	oldStdout := os.Stdout
 	os.Stdout = w
 	t.Cleanup(func() {
 		os.Stdout = oldStdout
@@ -126,7 +130,7 @@ func TestRunVersion(t *testing.T) {
 	if err != nil {
 		t.Fatalf("io.ReadAll: %v", err)
 	}
-	want := filepathBase(os.Args[0]) + " version v1.2.3 (commit abc1234)\n"
+	want := filepath.Base(os.Args[0]) + " version v1.2.3 (commit abc1234)\n"
 	if string(got) != want {
 		t.Fatalf("version output = %q, want %q", string(got), want)
 	}
@@ -165,7 +169,4 @@ func TestServeGracefulShutdown(t *testing.T) {
 	}
 }
 
-func filepathBase(path string) string {
-	parts := strings.Split(path, string(os.PathSeparator))
-	return parts[len(parts)-1]
-}
+

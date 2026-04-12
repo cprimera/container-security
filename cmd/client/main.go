@@ -66,8 +66,8 @@ import (
 )
 
 var (
-	version = ""
-	commit  = ""
+	version = "dev"
+	commit  = "unknown"
 )
 
 func main() {

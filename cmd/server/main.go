@@ -31,8 +31,8 @@ import (
 )
 
 var (
-	version = ""
-	commit  = ""
+	version = "dev"
+	commit  = "unknown"
 )
 
 func main() {
@@ -45,7 +45,7 @@ func run(args []string) int {
 	socketPath := fs.String("socket", socket.DefaultSocketPath, "Unix domain socket path")
 	showVersion := fs.Bool("version", false, "Print version information and exit")
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, "Usage: %s [-socket <path>]\n\n", progName)
+		fmt.Fprintf(os.Stderr, "Usage: %s [flags]\n\n", progName)
 		fmt.Fprintf(os.Stderr, "Flags:\n")
 		fs.PrintDefaults()
 	}
