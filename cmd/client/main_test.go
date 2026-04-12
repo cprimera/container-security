@@ -1,8 +1,10 @@
 package main
 
 import (
+	"io"
 	"net"
 	"os"
+	"strings"
 	"testing"
 
 	pb "github.com/cprimera/container-security/internal/proto"
@@ -84,6 +86,42 @@ func TestRunBadFlag(t *testing.T) {
 	}
 }
 
+func TestRunVersion(t *testing.T) {
+	oldVersion := version
+	oldCommit := commit
+	t.Cleanup(func() {
+		version = oldVersion
+		commit = oldCommit
+	})
+	version = "v1.2.3"
+	commit = "abc1234"
+
+	oldStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	os.Stdout = w
+	t.Cleanup(func() {
+		os.Stdout = oldStdout
+	})
+
+	code := run([]string{"-version"})
+	w.Close()
+	if code != 0 {
+		t.Errorf("run returned exit code %d, want 0", code)
+	}
+
+	got, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("io.ReadAll: %v", err)
+	}
+	want := filepathBase(os.Args[0]) + " version v1.2.3 (commit abc1234)\n"
+	if string(got) != want {
+		t.Fatalf("version output = %q, want %q", string(got), want)
+	}
+}
+
 func TestRunUnknownSubcommand(t *testing.T) {
 	// An unknown subcommand should be rejected by the client without connecting.
 	code := run([]string{"-socket", "/tmp/cs-nonexistent.sock", "list-keychains"})
@@ -147,4 +185,9 @@ func TestSendRequest(t *testing.T) {
 	if code != 0 {
 		t.Errorf("exit code: got %d, want 0", code)
 	}
+}
+
+func filepathBase(path string) string {
+	parts := strings.Split(path, string(os.PathSeparator))
+	return parts[len(parts)-1]
 }
